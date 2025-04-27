@@ -6,6 +6,10 @@ find_package(Vulkan REQUIRED)
 # find libshaderc (installed with Vulkan SDK, or build from https://github.com/google/shaderc)
 #find_package(shaderc_combined REQUIRED)
 
+find_program(GLSLC_PROGRAM glslc REQUIRED)
+execute_process(COMMAND ${GLSLC_PROGRAM} ${CMAKE_SOURCE_DIR}/vert.vert -o ${CMAKE_SOURCE_DIR}/vert.spv)
+execute_process(COMMAND ${GLSLC_PROGRAM} ${CMAKE_SOURCE_DIR}/frag.frag -o ${CMAKE_SOURCE_DIR}/frag.spv)
+
 # set the output directory for built objects.
 # This makes sure that the dynamic library goes into the build directory automatically.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
