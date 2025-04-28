@@ -9,3 +9,6 @@ add_subdirectory(v4l2_vulkan_video)
 
 # Add the triangle project (unchanged)
 add_subdirectory(triangle)
+
+# Add the v4l2_sdl_video project
+add_subdirectory(v4l2_sdl_video)
