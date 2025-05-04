@@ -486,6 +486,10 @@ int main(int argc, char* argv[]) {
         throw std::runtime_error("Failed to create semaphores");
     }
 
+
+    VkFenceCreateInfo fenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+    VkFence frameFence;
+    vkCreateFence(device, &fenceInfo, nullptr, &frameFence);
     // Main loop
     bool running = true;
     SDL_Event event;
@@ -497,6 +501,7 @@ int main(int argc, char* argv[]) {
         }
 
         uint32_t imageIndex;
+       
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
         VkSubmitInfo submitInfo = {};
@@ -512,7 +517,8 @@ int main(int argc, char* argv[]) {
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, frameFence) != VK_SUCCESS) {
             throw std::runtime_error("Failed to submit draw command buffer");
         }
 
@@ -526,10 +532,14 @@ int main(int argc, char* argv[]) {
         presentInfo.pImageIndices = &imageIndex;
 
         vkQueuePresentKHR(graphicsQueue, &presentInfo);
+
+        vkWaitForFences(device, 1, &frameFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &frameFence);
     }
 
     // Cleanup
     vkDeviceWaitIdle(device);
+    vkDestroyFence(device, frameFence, nullptr);
     vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
     vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
