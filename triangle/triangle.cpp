@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <fstream>
 #include <string>
+#include <iostream>
 
 // Utility function to load SPIR-V shader files
 std::vector<char> loadShader(const std::string& filename) {
@@ -19,6 +20,55 @@ std::vector<char> loadShader(const std::string& filename) {
     file.close();
     return buffer;
 }
+
+#ifdef NDEBUG
+const bool enableValidationLayers = false;
+#else
+const bool enableValidationLayers = true;
+#endif
+
+const std::vector<const char*> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+bool checkValidationLayerSupport() {
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    for (const char* layerName : validationLayers) {
+        bool layerFound = false;
+
+        for (const auto& layerProperties : availableLayers) {
+            if (strcmp(layerName, layerProperties.layerName) == 0) {
+                layerFound = true;
+                break;
+            }
+        }
+
+        if (!layerFound) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT              messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData) {
+    std::cerr << "Validation Layer: " << pCallbackData->pMessage << std::endl;
+    return VK_FALSE;
+}
+
+
+
+
+
 
 int main(int argc, char* argv[]) {
     // Initialize SDL
@@ -47,22 +97,65 @@ int main(int argc, char* argv[]) {
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
+    if (enableValidationLayers && !checkValidationLayerSupport()) {
+        throw std::runtime_error("Validation layers requested, but not available!");
+    }
 
+
+    // 1. Query required extensions from SDL, then add debug utils if needed
     Uint32 extCount = 0;
     char const* const* extensions = SDL_Vulkan_GetInstanceExtensions(&extCount);
     if (!extensions) {
         throw std::runtime_error("Failed to get Vulkan extensions: " + std::string(SDL_GetError()));
     }
 
+    std::vector<const char*> requiredExtensions(extensions, extensions + extCount);
+    if (enableValidationLayers) {
+        requiredExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+
+    // 2. Fill in createInfo
     VkInstanceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledExtensionCount = extCount;
-    createInfo.ppEnabledExtensionNames = extensions;
+
+    // 3. Attach extensions
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+    createInfo.ppEnabledExtensionNames = requiredExtensions.data(); 
+
+        // 4. Attach validation layers (if enabled)
+        if (enableValidationLayers) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data(); 
+        }
+        else {
+            createInfo.enabledLayerCount = 0;
+            createInfo.ppEnabledLayerNames = nullptr;
+        }
+
 
     VkInstance instance;
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Vulkan instance");
+    }
+
+    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
+    debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debugCreateInfo.messageSeverity =
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debugCreateInfo.messageType =
+        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    debugCreateInfo.pfnUserCallback = debugCallback;
+
+    VkDebugUtilsMessengerEXT debugMessenger;
+    // Function pointer must be loaded manually
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT)
+        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    if (func != nullptr) {
+        func(instance, &debugCreateInfo, nullptr, &debugMessenger);
     }
 
     // Create surface
@@ -359,6 +452,7 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < imageCount; ++i) {
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
         if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
             throw std::runtime_error("Failed to begin command buffer");
         }
@@ -447,6 +541,14 @@ int main(int argc, char* argv[]) {
     vkDestroyRenderPass(device, renderPass, nullptr);
     for (auto imageView : swapChainImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
+    }
+
+    // 1) Destroy debug messenger
+    auto destroyDebugMessenger =
+        (PFN_vkDestroyDebugUtilsMessengerEXT)
+        vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (destroyDebugMessenger) {
+        destroyDebugMessenger(instance, debugMessenger, nullptr);
     }
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
