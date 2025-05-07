@@ -39,7 +39,7 @@ VkPipelineLayout      pipelineLayout;
 std::vector<VkFramebuffer> swapChainFramebuffers;
 VkCommandPool         commandPool;
 
-
+VkDeviceMemory textureMemory;
 
 VkCommandBuffer beginSingleTimeCommands();
 void createBuffer(VkDeviceSize size,
@@ -106,8 +106,10 @@ stbi_uc*     pixels;
 
 
 std::vector<VkCommandBuffer> commandBuffers;
-VkSemaphore imageAvailableSemaphore;
-VkSemaphore renderFinishedSemaphore;
+const uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+std::vector<VkSemaphore> imageAvailableSemaphores(MAX_FRAMES_IN_FLIGHT);
+std::vector<VkSemaphore> renderFinishedSemaphores(MAX_FRAMES_IN_FLIGHT);
+uint32_t currentFrame = 0;
 
 
 
@@ -176,23 +178,7 @@ void createInstance() {
     createInfo.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
-    // // Extensions
-    // uint32_t glfwExtCount = 0;
-    // const char** glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
-    // std::vector<const char*> extensions(glfwExts, glfwExts + glfwExtCount);
-    // if (enableValidationLayers)
-    //     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
-    // createInfo.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
-    // createInfo.ppEnabledExtensionNames = extensions.data();
-
-    // // Validation layers
-    // if (enableValidationLayers) {
-    //     createInfo.enabledLayerCount   = static_cast<uint32_t>(validationLayers.size());
-    //     createInfo.ppEnabledLayerNames = validationLayers.data();
-    // } else {
-    //     createInfo.enabledLayerCount = 0;
-    // }
 
     // Get SDL’s list of required instance extensions
     Uint32 extCount = 0;
@@ -604,7 +590,7 @@ void createCommandBuffers() {
         renderPassInfo.framebuffer       = swapChainFramebuffers[i];
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChainExtent;
-        VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+        VkClearValue clearColor = { {{1.0f, 0.0f, 0.0f, 1.0f}} }; // Red
         renderPassInfo.clearValueCount   = 1;
         renderPassInfo.pClearValues      = &clearColor;
 
@@ -698,13 +684,29 @@ void createGraphicsPipeline() {
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertStageInfo, fragStageInfo };
 
-    // 4. Fixed‐function: Vertex input (empty here; adjust if you have attributes)
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(Vertex);
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+    attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[1].offset = offsetof(Vertex, uv);
+
+    // 4. Fixed‐function: Vertex input vertex attribute
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount   = 0; 
-    vertexInputInfo.pVertexBindingDescriptions      = nullptr;
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions    = nullptr;
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     // 5. Input assembly (triangle list)
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -813,11 +815,13 @@ void createGraphicsPipeline() {
 // Create sync objects (semaphores)
 // ===========================================
 void createSyncObjects() {
-    VkSemaphoreCreateInfo semInfo{};
-    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    if (vkCreateSemaphore(device, &semInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-        vkCreateSemaphore(device, &semInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create semaphores!");
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkSemaphoreCreateInfo semInfo{};
+        semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        if (vkCreateSemaphore(device, &semInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device, &semInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create semaphores!");
+        }
     }
 }
 
@@ -831,6 +835,10 @@ void loadTextureData(const char* filepath, int& texWidth, int& texHeight, VkDevi
     pixels = stbi_load(filepath, &texWidth, &texHeight, nullptr, STBI_rgb_alpha);
     if (!pixels) throw std::runtime_error("Failed to load texture image!");
     imageSize = texWidth * texHeight * 4;
+    std::cout << "Loaded texture. Dimensions: " << texWidth << "x" << texHeight 
+          << ", First pixel (RGBA): "
+          << (int)pixels[0] << "," << (int)pixels[1] << "," 
+          << (int)pixels[2] << "," << (int)pixels[3] << "\n";
 } // :contentReference[oaicite:7]{index=7}
 
 // 2. Create staging buffer and copy pixels
@@ -894,7 +902,11 @@ void createStagingBuffer(VkBuffer& buffer,
     void* mapped;
     vkMapMemory(device, bufferMemory, 0, size, 0, &mapped);
     memcpy(mapped, data, static_cast<size_t>(size));
-    vkUnmapMemory(device, bufferMemory);
+    stbi_uc* stagingPixels = static_cast<stbi_uc*>(mapped);
+    std::cout << "Staging buffer first pixel: "
+          << (int)stagingPixels[0] << "," << (int)stagingPixels[1] << ","
+          << (int)stagingPixels[2] << "," << (int)stagingPixels[3] << "\n";
+    //vkUnmapMemory(device, bufferMemory);
 }
 // 3. Create the Vulkan image
 void createTextureImage(int texWidth, int texHeight) {
@@ -921,20 +933,60 @@ void createTextureImage(int texWidth, int texHeight) {
     allocInfo.allocationSize  = memReq.size;
     allocInfo.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits,
                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VkDeviceMemory textureMemory;
+ 
     vkAllocateMemory(device, &allocInfo, nullptr, &textureMemory);
     vkBindImageMemory(device, textureImage, textureMemory, 0);
 
 } // :contentReference[oaicite:9]{index=9}
 
 // 4. Transition image layout and copy buffer to image
-void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-    // record pipeline barrier into command buffer...
-}
-void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-    // vkCmdCopyBufferToImage(...)
-} // :contentReference[oaicite:10]{index=10}
+void transitionImageLayout(VkCommandBuffer cmdbuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
 
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else {
+        throw std::invalid_argument("unsupported layout transition!");
+    }
+
+    vkCmdPipelineBarrier(cmdbuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
+void copyBufferToImage(VkCommandBuffer cmdbuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+    vkCmdCopyBufferToImage(cmdbuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+}
 // 5. Create image view
 void createTextureImageView() {
     VkImageViewCreateInfo viewInfo{};
@@ -950,7 +1002,7 @@ void createTextureImageView() {
 
     if (vkCreateImageView(device, &viewInfo, nullptr, &textureImageView) != VK_SUCCESS)
         throw std::runtime_error("Failed to create texture image view!");
-} // :contentReference[oaicite:11]{index=11}
+} 
 
 // 6. Create texture sampler
 void createTextureSampler() {
@@ -987,7 +1039,8 @@ void updateDescriptorSet() {
     descriptorWrite.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo      = &imageInfo;
-
+    std::cout << "Updating descriptor set with image view: " << textureImageView 
+              << ", sampler: " << textureSampler << "\n";
     vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 } // :contentReference[oaicite:13]{index=13}
 
@@ -1089,15 +1142,9 @@ void loadTexture() {
 
     // 4. Copy buffer → image with layout transitions
     VkCommandBuffer cmd = beginSingleTimeCommands();
-    transitionImageLayout(textureImage,
-                          VK_FORMAT_R8G8B8A8_SRGB,
-                          VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    copyBufferToImage(stagingBuffer, textureImage, (uint32_t)texWidth, (uint32_t)texHeight);
-    transitionImageLayout(textureImage,
-                          VK_FORMAT_R8G8B8A8_SRGB,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    transitionImageLayout(cmd, textureImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copyBufferToImage(cmd, stagingBuffer, textureImage, texWidth, texHeight);
+    transitionImageLayout(cmd, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     endSingleTimeCommands(cmd);
 
     // 5. Cleanup staging resources
@@ -1121,40 +1168,43 @@ void drawFrame() {
 // VkSemaphore imageAvailableSemaphore;
 // vkCreateSemaphore(device, &semInfo, nullptr, &imageAvailableSemaphore);
 
-// In draw loop:
-uint32_t imageIndex;
-vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
-                      imageAvailableSemaphore, /*fence=*/VK_NULL_HANDLE,
-                      &imageIndex);
-
+    // In draw loop:
+    uint32_t imageIndex;
+   
+    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, 
+        imageAvailableSemaphores[currentFrame], 
+        VK_NULL_HANDLE, &imageIndex);
+if (result != VK_SUCCESS) {
+std::cerr << "Failed to acquire swapchain image. Error: " << result << "\n";
+}
 
     VkCommandBuffer cmdBuffers[] = { commandBuffers[imageIndex] };
-
     VkSubmitInfo submitInfo{};
-    submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-     // wait on imageAvailableSemaphore
-    submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &imageAvailableSemaphore;
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    // wait on imageAvailableSemaphore
+    submitInfo.pWaitSemaphores = &imageAvailableSemaphores[currentFrame];
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.pWaitDstStageMask    = waitStages;
-    submitInfo.commandBufferCount   = 1;
-    submitInfo.pCommandBuffers      = cmdBuffers;
-    // signal this semaphore when rendering is done
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
-        throw std::runtime_error("failed to submit draw command buffer!");
+    submitInfo.pCommandBuffers = cmdBuffers;
+    submitInfo.signalSemaphoreCount = 1;
+    // signal this semaphore when rendering is done
+    submitInfo.pSignalSemaphores = &renderFinishedSemaphores[currentFrame];
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
 
     // 3) Present, waiting on renderFinishedSemaphore
     VkPresentInfoKHR presentInfo{};
-    presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 0;
-    presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
-    presentInfo.swapchainCount     = 1;
-    presentInfo.pSwapchains        = &swapChain;
-    presentInfo.pImageIndices      = &imageIndex;
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &renderFinishedSemaphores[currentFrame];
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &swapChain;
+    presentInfo.pImageIndices = &imageIndex;
     vkQueuePresentKHR(presentQueue, &presentInfo);
+    
+    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void mainLoop() {
@@ -1179,8 +1229,15 @@ void mainLoop() {
 // ===========================================
 void cleanup() {
 
-    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+    // Destroy all image available semaphores
+    for (auto& semaphore : imageAvailableSemaphores) {
+        vkDestroySemaphore(device, semaphore, nullptr);
+    }
+
+    // Destroy all render finished semaphores
+    for (auto& semaphore : renderFinishedSemaphores) {
+        vkDestroySemaphore(device, semaphore, nullptr);
+    }
     vkDestroySampler(device, textureSampler, nullptr);
     vkDestroyImageView(device, textureImageView, nullptr);
     vkDestroyImage(device, textureImage, nullptr);
