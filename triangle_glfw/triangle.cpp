@@ -1,11 +1,11 @@
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
-#include <vulkan/vulkan.h>
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 #include <vector>
 #include <stdexcept>
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <cstring> 
 
 // Utility function to load SPIR-V shader files
 std::vector<char> loadShader(const std::string& filename) {
@@ -68,20 +68,13 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 
 
 int main(int argc, char* argv[]) {
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        throw std::runtime_error("SDL_Init failed: " + std::string(SDL_GetError()));
-    }
+    if (!glfwInit())
+        throw std::runtime_error("Failed to initialize GLFW");
 
-    // Create SDL window
-    SDL_Window* window = SDL_CreateWindow(
-        "Vulkan Triangle",     // title                                  
-        800, 600,              // width, height                          
-        SDL_WINDOW_VULKAN      // flags (windows shown by default)      
-    );
-    if (!window) {
-        throw std::runtime_error("SDL_CreateWindow failed: " + std::string(SDL_GetError()));
-    }
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // tell GLFW not to create an OpenGL context
+    GLFWwindow* window = glfwCreateWindow(800, 600, "Vulkan Triangle", nullptr, nullptr);
+    if (!window)
+        throw std::runtime_error("Failed to create GLFW window");
 
     // --- Vulkan Initialization ---
 
@@ -100,11 +93,10 @@ int main(int argc, char* argv[]) {
 
 
     // 1. Query required extensions from SDL, then add debug utils if needed
-    Uint32 extCount = 0;
-    char const* const* extensions = SDL_Vulkan_GetInstanceExtensions(&extCount);
-    if (!extensions) {
-        throw std::runtime_error("Failed to get Vulkan extensions: " + std::string(SDL_GetError()));
-    }
+    uint32_t extCount = 0;
+    auto extensions = glfwGetRequiredInstanceExtensions(&extCount);
+    if (!extensions)
+        throw std::runtime_error("Failed to get GLFW Vulkan extensions");
 
     std::vector<const char*> requiredExtensions(extensions, extensions + extCount);
     if (enableValidationLayers) {
@@ -157,8 +149,8 @@ int main(int argc, char* argv[]) {
 
     // Create surface
     VkSurfaceKHR surface;
-    if (!SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface)) {
-        throw std::runtime_error("Failed to create Vulkan surface: " + std::string(SDL_GetError()));
+    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan surface via GLFW");
     }
 
     // Select physical device
@@ -218,7 +210,7 @@ int main(int argc, char* argv[]) {
     VkExtent2D extent = capabilities.currentExtent;
     if (extent.width == UINT32_MAX) {
         int width, height;
-        SDL_GetWindowSize(window, &width, &height);
+        glfwGetWindowSize(window, &width, &height);
         extent.width = width;
         extent.height = height;
     }
@@ -488,14 +480,10 @@ int main(int argc, char* argv[]) {
     VkFence frameFence;
     vkCreateFence(device, &fenceInfo, nullptr, &frameFence);
     // Main loop
-    bool running = true;
-    SDL_Event event;
-    while (running) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                running = false;
-            }
-        }
+
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+
 
         uint32_t imageIndex;
        
@@ -563,8 +551,8 @@ int main(int argc, char* argv[]) {
     vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    glfwDestroyWindow(window);
+    glfwTerminate();
 
     return 0;
 }

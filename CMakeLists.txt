@@ -10,5 +10,12 @@ add_subdirectory(v4l2_vulkan_video)
 # Add the triangle project (unchanged)
 add_subdirectory(triangle)
 
+add_subdirectory(triangle_glfw)
+
 # Add the v4l2_sdl_video project
 add_subdirectory(v4l2_sdl_video)
+
+
+add_subdirectory(vulkan_texture_image)
+
+add_subdirectory(vulkan_texture_image_class)
