@@ -109,6 +109,8 @@ std::vector<VkCommandBuffer> commandBuffers;
 const uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 std::vector<VkSemaphore> imageAvailableSemaphores(MAX_FRAMES_IN_FLIGHT);
 std::vector<VkSemaphore> renderFinishedSemaphores(MAX_FRAMES_IN_FLIGHT);
+
+std::vector<VkFence> inFlightFences(MAX_FRAMES_IN_FLIGHT);
 uint32_t currentFrame = 0;
 
 
@@ -239,6 +241,8 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
     return indices;
 }
 
+
+//ok
 void pickPhysicalDevice() {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -247,9 +251,14 @@ void pickPhysicalDevice() {
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
-    for (auto& dev : devices) {
+    for (VkPhysicalDevice& dev : devices) {
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(dev, &deviceProperties);
+        std::cout << "Available Device: " << deviceProperties.deviceName << std::endl;
         auto indices = findQueueFamilies(dev);
+        
         if (indices.isComplete()) {
+            std::cout << "choose Device: " << deviceProperties.deviceName << std::endl;
             physicalDevice = dev;
             break;
         }
@@ -259,7 +268,7 @@ void pickPhysicalDevice() {
 }
 
 // ===========================================
-// Logical Device & Queues
+// Logical Device & Queues  ok
 // ===========================================
 void createLogicalDevice() {
     auto indices = findQueueFamilies(physicalDevice);
@@ -647,7 +656,7 @@ static std::vector<char> readFile(const std::string& filename) {
     return buffer;
 }
 
-// Create a VkShaderModule from SPIR-V code
+// Create a VkShaderModule from SPIR-V code  ok
 VkShaderModule createShaderModule(const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -812,15 +821,25 @@ void createGraphicsPipeline() {
 
 
 // ===========================================
-// Create sync objects (semaphores)
+// Create sync objects (semaphores)  same as class code
 // ===========================================
 void createSyncObjects() {
-    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        VkSemaphoreCreateInfo semInfo{};
-        semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        if (vkCreateSemaphore(device, &semInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create semaphores!");
+    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create synchronization objects for a frame!");
         }
     }
 }
@@ -906,7 +925,7 @@ void createStagingBuffer(VkBuffer& buffer,
     std::cout << "Staging buffer first pixel: "
           << (int)stagingPixels[0] << "," << (int)stagingPixels[1] << ","
           << (int)stagingPixels[2] << "," << (int)stagingPixels[3] << "\n";
-    //vkUnmapMemory(device, bufferMemory);
+    vkUnmapMemory(device, bufferMemory);
 }
 // 3. Create the Vulkan image
 void createTextureImage(int texWidth, int texHeight) {
@@ -939,6 +958,7 @@ void createTextureImage(int texWidth, int texHeight) {
 
 } // :contentReference[oaicite:9]{index=9}
 
+//maybe wrong
 // 4. Transition image layout and copy buffer to image
 void transitionImageLayout(VkCommandBuffer cmdbuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
     VkImageMemoryBarrier barrier{};
@@ -973,7 +993,7 @@ void transitionImageLayout(VkCommandBuffer cmdbuffer, VkImage image, VkImageLayo
 
     vkCmdPipelineBarrier(cmdbuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
-
+//maybe wrong
 void copyBufferToImage(VkCommandBuffer cmdbuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
@@ -1163,10 +1183,8 @@ void loadTexture() {
 // Main loop & drawFrame()
 // ===========================================
 void drawFrame() {
-//     // During setup:
-// VkSemaphoreCreateInfo semInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-// VkSemaphore imageAvailableSemaphore;
-// vkCreateSemaphore(device, &semInfo, nullptr, &imageAvailableSemaphore);
+    vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
     // In draw loop:
     uint32_t imageIndex;

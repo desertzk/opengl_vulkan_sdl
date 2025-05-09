@@ -18,4 +18,8 @@ add_subdirectory(v4l2_sdl_video)
 
 add_subdirectory(vulkan_texture_image)
 
+add_subdirectory(vulkan_texture_image0)
+
+add_subdirectory(vulkan_texture_image1)
+
 add_subdirectory(vulkan_texture_image_class)
