@@ -15,7 +15,7 @@ find_package(Vulkan REQUIRED)
 # ----------------------------------------------------------------------------
 # 4) Find GLFW (instead of SDL3)
 # ----------------------------------------------------------------------------
-find_package(glfw3 3.3 REQUIRED)  # ← replaces SDL3 find_package :contentReference[oaicite:0]{index=0}
+# find_package(glfw3 3.3 REQUIRED)  # ← replaces SDL3 find_package :contentReference[oaicite:0]{index=0}
 
 # ----------------------------------------------------------------------------
 # 5) Shader compilation
@@ -75,3 +75,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vulkan::Vulkan
     glfw          # ← link against GLFW instead of SDL3 :contentReference[oaicite:2]{index=2}
 )
+
+file(COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/textures
+  DESTINATION
+    ${CMAKE_CURRENT_BINARY_DIR})
+

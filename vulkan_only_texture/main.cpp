@@ -161,6 +161,11 @@ private:
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
+
+    //std::vector<VkBuffer> uniformBuffers;
+    //std::vector<VkDeviceMemory> uniformBuffersMemory;
+    //std::vector<void*> uniformBuffersMapped;
+
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
 
@@ -206,6 +211,7 @@ private:
         createTextureSampler();
         createVertexBuffer();
         createIndexBuffer();
+       // createUniformBuffers();
         createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
@@ -239,6 +245,12 @@ private:
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
+
+        //for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        //    vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+        //    vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+        //}
+
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
         vkDestroySampler(device, textureSampler, nullptr);
@@ -920,6 +932,20 @@ private:
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
+    //void createUniformBuffers() {
+    //    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+    //    uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    //    uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    //    uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+    //    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    //        createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+
+    //        vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+    //    }
+    //}
+
     void createDescriptorPool() {
         std::array<VkDescriptorPoolSize, 1> poolSizes{};
 
@@ -951,7 +977,10 @@ private:
         }
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-
+            //VkDescriptorBufferInfo bufferInfo{};
+            //bufferInfo.buffer = uniformBuffers[i];
+            //bufferInfo.offset = 0;
+            //bufferInfo.range = sizeof(UniformBufferObject);
 
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1142,6 +1171,8 @@ private:
             }
         }
     }
+
+
 
     void drawFrame() {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);

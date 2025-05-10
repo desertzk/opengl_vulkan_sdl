@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(vulkantriangle_glfw LANGUAGES CXX)
 
 find_package(Vulkan REQUIRED)
-find_package(glfw3 3.3 REQUIRED)
+#find_package(glfw3 3.3 REQUIRED)
 # find_package(SDL3   REQUIRED)
 find_program(GLSLC_PROGRAM glslc REQUIRED)
 
