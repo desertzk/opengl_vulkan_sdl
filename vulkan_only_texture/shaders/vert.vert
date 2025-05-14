@@ -15,7 +15,7 @@ void main() {
     mat4 view = mat4(
         -1.0, 0.0,  0.0, 0.0,  // Column 0
          0.0, -1.0, 0.0, 0.0,  // Column 1
-         0.0, 0.0, -1.0, 1.0,  // Column 2 (translation z = 1)
+         0.0, 0.0, 1.0, -1.0,  // Column 2 (translation z = 1)
          0.0, 0.0, 0.0, 1.0    // Column 3
     );
 

@@ -1,9 +1,10 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#define GLM_FORCE_RADIANS
+#define GLM_ENABLE_EXPERIMENTAL 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>          // for glm::to_string()
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -115,10 +116,11 @@ struct UniformBufferObject {
 };
 
 const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+    // x      y       color               u v
+    {{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    {{1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+    {{-1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 };
 
 const std::vector<uint16_t> indices = {
@@ -1197,18 +1199,41 @@ private:
     }
 
     void updateUniformBuffer(uint32_t currentImage) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
+        //static auto startTime = std::chrono::high_resolution_clock::now();
 
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        //auto currentTime = std::chrono::high_resolution_clock::now();
+        //float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        //ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        //ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        //ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        //ubo.proj[1][1] *= -1;
+
+// Model matrix: No transformation (identity)
+        ubo.model = glm::mat4(1.0f);
+
+        // View matrix: Camera positioned to see the entire quad
+        ubo.view = glm::lookAt(
+            glm::vec3(0.0f, 0.0f, 1.0f),  // Camera at (0, 0, 1), looking along -Z
+            glm::vec3(0.0f, 0.0f, 0.0f),  // Focus at the origin
+            glm::vec3(0.0f, -1.0f, 0.0f)   // Y-axis is "up"
+        );
+        //print by column
+        std::cout << glm::to_string(ubo.view) << std::endl;
+        // Orthographic projection matrix (covers the entire NDC space)
+        ubo.proj = glm::ortho(
+            -1.0f, 1.0f,   // Left/Right bounds (covers x ¡Ê [-1, 1])
+            -1.0f, 1.0f,   // Bottom/Top bounds (covers y ¡Ê [-1, 1])
+            -1.0f, 1.0f    // Near/Far planes (ensure z=0 is visible)
+        );
+
+        // Flip Y-axis for Vulkan's clip-space
         ubo.proj[1][1] *= -1;
 
+        // Update the uniform buffer
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        
     }
 
     void drawFrame() {
