@@ -30,3 +30,5 @@ add_subdirectory(vulkan_texture_image0)
 add_subdirectory(vulkan_texture_image1)
 
 add_subdirectory(vulkan_texture_image_class)
+
+add_subdirectory(opengl_camera_glfw)
