@@ -5,9 +5,6 @@ project(opengl_camera_glfw)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Optionally set output directories
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
 # Source files
 set(SRC
     camera_mouse_zoom.cpp
@@ -53,3 +50,11 @@ foreach(_shader IN LISTS SHADERS)
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${_shader}"
     )
 endforeach()
+
+# --- copy entire textures folder ---
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/resources/textures"
+)
