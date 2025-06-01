@@ -10,3 +10,6 @@
 [submodule "vendored/glfw"]
 	path = vendored/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "vendored/assimp"]
+	path = vendored/assimp
+	url = https://github.com/assimp/assimp.git
