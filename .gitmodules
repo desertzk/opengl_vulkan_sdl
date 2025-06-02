@@ -13,3 +13,6 @@
 [submodule "vendored/assimp"]
 	path = vendored/assimp
 	url = https://github.com/assimp/assimp.git
+[submodule "vendored/gli"]
+	path = vendored/gli
+	url = https://github.com/g-truc/gli.git

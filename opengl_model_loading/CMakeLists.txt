@@ -28,6 +28,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/../vendored/glm
     ${PROJECT_SOURCE_DIR}/../vendored/stb
     ${PROJECT_SOURCE_DIR}/../vendored/assimp
+    ${PROJECT_SOURCE_DIR}/../vendored/gli 
 )
 
 
