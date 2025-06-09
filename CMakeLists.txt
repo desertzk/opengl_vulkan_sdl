@@ -42,4 +42,4 @@ add_subdirectory(opengl_camera_glfw)
 
 add_subdirectory(opengl_model_loading)
 
-add_subdirectory(opengl_fbxmodel_loading)
+#add_subdirectory(opengl_fbxmodel_loading)
