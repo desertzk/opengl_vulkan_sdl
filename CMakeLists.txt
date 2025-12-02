@@ -43,3 +43,4 @@ add_subdirectory(opengl_camera_glfw)
 add_subdirectory(opengl_model_loading)
 
 add_subdirectory(opengl_basic_light)
+add_subdirectory(vulkan_video_check)
